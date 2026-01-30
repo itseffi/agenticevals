@@ -1,0 +1,119 @@
+{
+  "schema_version": "agenticevals.environment-baselines.v1",
+  "generated_at": "2026-05-12T14:14:42Z",
+  "environment": "examples.tau_retail_env:TauRetailEnv",
+  "suite": "examples.tau_retail_env:TauRetailEnv",
+  "dataset": {
+    "id": "tau-retail-smoke",
+    "items": 3,
+    "source": "bundled deterministic smoke tasks",
+    "task_digest_sha256": "0df350978be3b4a2ed00404af45a471e34fd3379bd04b38b8d14bf6b22e8bacf",
+    "upstream_tau2_status": "not_run",
+    "upstream_tau2_reference": "https://github.com/sierra-research/tau2-bench/tree/main/data/tau2/domains/retail"
+  },
+  "backend": "local",
+  "image": null,
+  "max_items": 3,
+  "trials": 1,
+  "metrics": {
+    "pass_at_1": "mean task success on the first attempt",
+    "pass_power_k": "tau-style consistency metric; k=1 for this checked-in smoke run",
+    "cost_per_success_usd": "null for account-auth CLI adapters because provider billing/token usage is not exposed by the CLI"
+  },
+  "calibration": {
+    "labels_path": "agenticevals/bundled/benchmarks/calibration/llm-rubric-v0.1.jsonl",
+    "labels_sha256": "f465017652c330a1253f65715dcb7fd02353a64395f95706a3d6f1bd14765a43",
+    "n": 50,
+    "kappa": 0.879615
+  },
+  "agents": [
+    "codex",
+    "claude-code"
+  ],
+  "rows": [
+    {
+      "agent": "claude-code",
+      "account_mode": "local CLI account",
+      "items": 3,
+      "trials": 1,
+      "rollouts": 3,
+      "passed": 3,
+      "pass_rate": 1.0,
+      "pass_rate_ci": {
+        "mean": 1.0,
+        "low": 1.0,
+        "high": 1.0,
+        "confidence": 0.95,
+        "samples": 1000
+      },
+      "pass_at_1": 1.0,
+      "pass_at_1_ci": {
+        "mean": 1.0,
+        "low": 1.0,
+        "high": 1.0,
+        "confidence": 0.95,
+        "samples": 1000
+      },
+      "pass_power_k": 1.0,
+      "pass_power_k_ci": {
+        "mean": 1.0,
+        "low": 1.0,
+        "high": 1.0,
+        "confidence": 0.95,
+        "samples": 1000
+      },
+      "mean_reward_rate": 1.0,
+      "total_cost_usd": null,
+      "cost_per_success_usd": null,
+      "mean_duration_seconds": 18.935464938481648,
+      "eval_run_dirs": [
+        "runs/eval-tau-retail-20260512-160740-9cfa0246"
+      ]
+    },
+    {
+      "agent": "codex",
+      "account_mode": "local CLI account",
+      "items": 3,
+      "trials": 1,
+      "rollouts": 3,
+      "passed": 3,
+      "pass_rate": 1.0,
+      "pass_rate_ci": {
+        "mean": 1.0,
+        "low": 1.0,
+        "high": 1.0,
+        "confidence": 0.95,
+        "samples": 1000
+      },
+      "pass_at_1": 1.0,
+      "pass_at_1_ci": {
+        "mean": 1.0,
+        "low": 1.0,
+        "high": 1.0,
+        "confidence": 0.95,
+        "samples": 1000
+      },
+      "pass_power_k": 1.0,
+      "pass_power_k_ci": {
+        "mean": 1.0,
+        "low": 1.0,
+        "high": 1.0,
+        "confidence": 0.95,
+        "samples": 1000
+      },
+      "mean_reward_rate": 1.0,
+      "total_cost_usd": null,
+      "cost_per_success_usd": null,
+      "mean_duration_seconds": 56.088922341664635,
+      "eval_run_dirs": [
+        "runs/eval-tau-retail-20260512-160903-b2e9b64d"
+      ]
+    }
+  ],
+  "limitations": [
+    "This checked-in artifact uses the bundled tau-retail smoke environment, not the upstream tau2 retail simulator.",
+    "Only local Codex and Claude Code CLI accounts were available in this workspace. OPENAI_API_KEY, ANTHROPIC_API_KEY, GEMINI_API_KEY, and GOOGLE_API_KEY were not set, and no Gemini CLI was installed.",
+    "Cost-per-success is null for CLI-account adapters because token and billing usage are not exposed by those CLIs.",
+    "pass^k is reported with k=1 here. Multi-trial pass^k is supported by env-baselines via --trials, but was not rerun with paid accounts for this checked-in smoke artifact."
+  ]
+}

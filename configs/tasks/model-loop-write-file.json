@@ -1,0 +1,33 @@
+{
+  "id": "model-loop-write-file",
+  "title": "Model loop writes a file through parsed tool calls",
+  "prompt": "Create answer.txt containing the word done.",
+  "workspace": {
+    "fixture_path": "../../examples/code-hidden-grader"
+  },
+  "agent": {
+    "kind": "model-loop",
+    "model": "fixture",
+    "script": [
+      {
+        "content": "<tool_call>{\"tool_name\":\"write_file\",\"arguments\":{\"path\":\"answer.txt\",\"content\":\"done\\n\"}}</tool_call>"
+      },
+      {
+        "content": "Created answer.txt."
+      }
+    ]
+  },
+  "checks": {
+    "files": [
+      { "path": "answer.txt", "equals": "done\n" }
+    ]
+  },
+  "policies": {
+    "require_changed_files": ["answer.txt"],
+    "max_changed_files": 1
+  },
+  "limits": {
+    "max_steps": 5,
+    "max_minutes": 5
+  }
+}

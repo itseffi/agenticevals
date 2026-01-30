@@ -1,0 +1,25 @@
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.coverage
+coverage.xml
+htmlcov/
+.venv/
+venv/
+build/
+dist/
+*.egg-info/
+.DS_Store
+
+# Generated agenticevals artifacts
+runs/
+workspace/
+traces/
+.cache/
+*.calibration.json
+
+# Local secrets/config
+.env
+.env.local

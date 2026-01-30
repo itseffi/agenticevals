@@ -1,0 +1,11 @@
+{
+  "id": "core",
+  "title": "Core agentic eval smoke suite",
+  "tasks": [
+    { "path": "../tasks/patch-python-bug.json" },
+    { "path": "../tasks/code-hidden-grader.json" },
+    { "path": "../tasks/code-hidden-grader-command.json" },
+    { "path": "../tasks/model-loop-write-file.json" },
+    { "path": "../tasks/mock-gmail-draft.json", "trials": 2 }
+  ]
+}

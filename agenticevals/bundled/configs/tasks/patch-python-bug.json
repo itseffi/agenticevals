@@ -1,0 +1,62 @@
+{
+  "id": "patch-python-bug",
+  "title": "Patch a Python bug and preserve behavior",
+  "prompt": "Fix the divide-by-zero behavior in src/calculator.py. The function should raise ZeroDivisionError when b is zero. Do not delete or weaken tests. Run the tests before finishing.",
+  "workspace": {
+    "fixture_path": "../../examples/patch-python-bug/fixtures",
+    "setup": []
+  },
+  "agent": {
+    "kind": "scripted",
+    "script": [
+      {
+        "action": "replace",
+        "path": "src/calculator.py",
+        "old": "    if b == 0:\n        return 0\n    return a / b\n",
+        "new": "    if b == 0:\n        raise ZeroDivisionError(\"division by zero\")\n    return a / b\n"
+      },
+      {
+        "action": "run",
+        "command": "python3 -m unittest discover -s tests",
+        "must_pass": true
+      },
+      {
+        "action": "final",
+        "message": "Fixed divide-by-zero behavior and verified the unittest suite passes."
+      }
+    ]
+  },
+  "limits": {
+    "max_steps": 10,
+    "max_minutes": 5
+  },
+  "policies": {
+    "forbidden_paths": [
+      "tests"
+    ],
+    "max_changed_files": 1,
+    "require_changed_files": [
+      "src/calculator.py"
+    ]
+  },
+  "checks": {
+    "commands": [
+      "python3 -m unittest discover -s tests"
+    ],
+    "files": [
+      {
+        "name": "implementation raises",
+        "path": "src/calculator.py",
+        "contains": "raise ZeroDivisionError"
+      }
+    ],
+    "browser": []
+  },
+  "score": {
+    "command_checks": 40,
+    "file_checks": 20,
+    "browser_checks": 0,
+    "git_policy": 40
+  }
+}
+

@@ -1,0 +1,64 @@
+{
+  "id": "browser-state",
+  "title": "Patch a browser-observable UI state",
+  "prompt": "Update the checkout page so the status text says: Ready for browser verification. Do not create a new page.",
+  "workspace": {
+    "fixture_path": "../../examples/browser-state/fixtures",
+    "setup": [],
+    "dev_server": {
+      "command": "python3 -m http.server 8765 --directory public",
+      "url": "http://localhost:8765",
+      "startup_wait_seconds": 1
+    }
+  },
+  "agent": {
+    "kind": "scripted",
+    "script": [
+      {
+        "action": "replace",
+        "path": "public/index.html",
+        "old": "Broken validation state",
+        "new": "Ready for browser verification"
+      },
+      {
+        "action": "final",
+        "message": "Updated the browser-visible status text."
+      }
+    ]
+  },
+  "limits": {
+    "max_steps": 5,
+    "max_minutes": 5
+  },
+  "policies": {
+    "max_changed_files": 1,
+    "require_changed_files": [
+      "public/index.html"
+    ]
+  },
+  "checks": {
+    "commands": [],
+    "files": [
+      {
+        "name": "html was updated",
+        "path": "public/index.html",
+        "contains": "Ready for browser verification"
+      }
+    ],
+    "browser": [
+      {
+        "name": "served page shows updated state",
+        "path": "/",
+        "status": 200,
+        "contains": "Ready for browser verification"
+      }
+    ]
+  },
+  "score": {
+    "command_checks": 0,
+    "file_checks": 25,
+    "browser_checks": 50,
+    "git_policy": 25
+  }
+}
+

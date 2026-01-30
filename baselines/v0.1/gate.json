@@ -1,0 +1,26 @@
+{
+  "schema_version": "agenticevals.release-gate.v1",
+  "passed": false,
+  "checks": [
+    {
+      "name": "baseline_agent_count",
+      "passed": false,
+      "detail": "agents=2, required=3"
+    },
+    {
+      "name": "baseline_has_ci",
+      "passed": true,
+      "detail": "all baseline rows include pass_rate_ci"
+    },
+    {
+      "name": "baseline_has_dataset",
+      "passed": true,
+      "detail": "suite=examples.tau_retail_env:TauRetailEnv"
+    },
+    {
+      "name": "judge_kappa",
+      "passed": true,
+      "detail": "kappa=0.880, required=0.500"
+    }
+  ]
+}

@@ -1,0 +1,16 @@
+[
+  {
+    "id": "msg_101",
+    "from": "client@bigcorp.com",
+    "subject": "Project delay",
+    "body": "Can you send a concise update about the project delay and the recovery plan?",
+    "important": true
+  },
+  {
+    "id": "msg_102",
+    "from": "newsletter@example.com",
+    "subject": "Weekly links",
+    "body": "FYI only. No response needed.",
+    "important": false
+  }
+]

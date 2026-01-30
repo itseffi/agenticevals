@@ -1,0 +1,30 @@
+{
+  "id": "code-hidden-grader-command",
+  "title": "Fix slug generation with an external agent command",
+  "prompt": "Fix src/text_tools.py so slugify returns lowercase URL slugs, removes punctuation, collapses repeated separators, and strips separators from the edges.",
+  "workspace": {
+    "fixture_path": "../../examples/code-hidden-grader"
+  },
+  "agent": {
+    "kind": "command",
+    "command": "python \"$AGENTICEVALS_ROOT/examples/agents/slugify_command_agent.py\""
+  },
+  "sandbox_grader_files": [
+    "graders/code-hidden-grader"
+  ],
+  "checks": {
+    "commands": [
+      "python -m unittest discover -s graders/code-hidden-grader"
+    ]
+  },
+  "policies": {
+    "require_changed_files": [
+      "src/text_tools.py"
+    ],
+    "max_changed_files": 1
+  },
+  "limits": {
+    "max_steps": 5,
+    "max_minutes": 5
+  }
+}
