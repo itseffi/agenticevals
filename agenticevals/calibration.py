@@ -24,7 +24,7 @@ def calibration_report(labels: list[tuple[str, str]], *, source: str = "") -> di
         matrix[h][j] += 1
     kappa = cohen_kappa(human, judge)
     accuracy = sum(1 for h, j in labels if h == j) / len(labels) if labels else 0.0
-    return {
+    report = {
         "schema_version": "agenticevals.judge-calibration.v1",
         "source": source,
         "n": len(labels),
@@ -34,6 +34,28 @@ def calibration_report(labels: list[tuple[str, str]], *, source: str = "") -> di
         "confusion_matrix": matrix,
         "limitations": "v0.1 calibration uses 50 labeled examples; expand to 200+ before treating LLM judge scores as headline metrics.",
     }
+    rates = _binary_rates(matrix, classes)
+    if rates is not None:
+        report["tpr"], report["tnr"] = rates
+    return report
+
+
+def _binary_rates(matrix: dict[str, dict[str, int]], classes: list[str]) -> tuple[float, float] | None:
+    """True-positive and true-negative rate, treating "pass" as the positive class.
+
+    Phoenix calibration wants both TPR and TNR above ~0.70; accuracy and kappa
+    alone hide a judge that is lenient on one class. Only defined for binary
+    pass/fail label sets.
+    """
+    if set(classes) != {"pass", "fail"}:
+        return None
+    tp = matrix["pass"]["pass"]
+    fn = matrix["pass"]["fail"]
+    tn = matrix["fail"]["fail"]
+    fp = matrix["fail"]["pass"]
+    tpr = tp / (tp + fn) if (tp + fn) else 0.0
+    tnr = tn / (tn + fp) if (tn + fp) else 0.0
+    return round(tpr, 6), round(tnr, 6)
 
 
 def cohen_kappa(human: list[str], judge: list[str]) -> float:

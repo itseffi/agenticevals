@@ -11,6 +11,8 @@ def evaluate_release_gate(
     calibration_path: Path | None = None,
     min_agents: int = 3,
     min_kappa: float = 0.5,
+    min_tpr: float = 0.7,
+    min_tnr: float = 0.7,
 ) -> dict[str, Any]:
     baselines = _read_json(baselines_path)
     rows = baselines.get("rows", [])
@@ -23,6 +25,14 @@ def evaluate_release_gate(
         calibration = _read_json(calibration_path)
         kappa = float(calibration.get("kappa", 0.0) or 0.0)
         checks.append(_check("judge_kappa", kappa >= min_kappa, f"kappa={kappa:.3f}, required={min_kappa:.3f}"))
+        # Binary calibrations report per-class rates; a judge can clear kappa
+        # while being lenient on one class, so gate on TPR and TNR when present.
+        if "tpr" in calibration:
+            tpr = float(calibration.get("tpr", 0.0) or 0.0)
+            checks.append(_check("judge_tpr", tpr >= min_tpr, f"tpr={tpr:.3f}, required={min_tpr:.3f}"))
+        if "tnr" in calibration:
+            tnr = float(calibration.get("tnr", 0.0) or 0.0)
+            checks.append(_check("judge_tnr", tnr >= min_tnr, f"tnr={tnr:.3f}, required={min_tnr:.3f}"))
     else:
         checks.append(_check("judge_kappa", False, "missing calibration report"))
     return {

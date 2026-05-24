@@ -4,7 +4,7 @@ import unittest
 from pathlib import Path
 
 from agenticevals.baselines import run_baselines
-from agenticevals.calibration import calibrate_judge_file, cohen_kappa
+from agenticevals.calibration import calibrate_judge_file, calibration_report, cohen_kappa
 from agenticevals.config import Settings
 from agenticevals.environment_baselines import run_environment_baselines
 from agenticevals.release_gate import evaluate_release_gate
@@ -39,6 +39,45 @@ class ReleaseMetricsTests(unittest.TestCase):
             output_exists = Path(report["output"]).exists()
         self.assertEqual(report["n"], 3)
         self.assertTrue(output_exists)
+
+    def test_calibration_reports_tpr_and_tnr_for_binary_labels(self):
+        labels = [
+            ("pass", "pass"),  # TP
+            ("pass", "pass"),  # TP
+            ("pass", "fail"),  # FN
+            ("fail", "fail"),  # TN
+            ("fail", "pass"),  # FP
+        ]
+        report = calibration_report(labels)
+        # TPR = TP/(TP+FN) = 2/3 ; TNR = TN/(TN+FP) = 1/2
+        self.assertAlmostEqual(report["tpr"], 2 / 3, places=6)
+        self.assertEqual(report["tnr"], 0.5)
+
+    def test_release_gate_fails_on_low_judge_tpr(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            baselines_path = root / "baselines.json"
+            baselines_path.write_text(
+                json.dumps(
+                    {
+                        "suite": "s",
+                        "rows": [
+                            {"agent": a, "pass_rate_ci": {}} for a in ("scripted", "noop", "model-loop")
+                        ],
+                    }
+                ),
+                encoding="utf-8",
+            )
+            calibration_path = root / "calibration.json"
+            calibration_path.write_text(
+                json.dumps({"kappa": 0.8, "tpr": 0.6, "tnr": 0.9}), encoding="utf-8"
+            )
+            gate = evaluate_release_gate(
+                baselines_path=baselines_path, calibration_path=calibration_path
+            )
+        tpr_check = next(c for c in gate["checks"] if c["name"] == "judge_tpr")
+        self.assertFalse(tpr_check["passed"])
+        self.assertFalse(gate["passed"])
 
     def test_baselines_release_gate_and_filtered_review(self):
         with tempfile.TemporaryDirectory() as tmp:

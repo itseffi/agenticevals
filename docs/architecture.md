@@ -157,8 +157,9 @@ The v0.1 release gate is explicit:
 - bootstrap confidence intervals present for baseline rows
 - judge calibration report present
 - Cohen's kappa at or above the configured threshold
+- for binary calibrations, judge TPR and TNR at or above 0.70 (when reported)
 
-If the judge kappa is weak, do not use LLM judge scores as headline results.
+If the judge kappa is weak, or its TPR/TNR show it is lenient on one class, do not use LLM judge scores as headline results.
 
 ### Verifiers And Rewards
 
