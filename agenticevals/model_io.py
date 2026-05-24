@@ -114,6 +114,16 @@ def _urlopen_json(request: urllib.request.Request, timeout: int) -> dict[str, An
     return _with_retries(_call, attempts=_retry_attempts())
 
 
+def _cache_key(provider: str, model: str, payload: Any, params: dict[str, Any] | None = None) -> str:
+    """Stable cache key for a model call.
+
+    Includes `params` (e.g. sampling settings) so that two calls with the same
+    prompt but different parameters never collide on a cached response.
+    """
+    material = {"provider": provider, "model": model, "payload": payload, "params": params or {}}
+    return hashlib.sha256(json.dumps(material, sort_keys=True, default=str).encode()).hexdigest()
+
+
 class RateLimiter:
     def __init__(self, min_interval_seconds: float):
         self.min_interval_seconds = min_interval_seconds
@@ -126,11 +136,18 @@ class RateLimiter:
         self._last = time.monotonic()
 
 
-def openai_response(model: str, input_text: str, *, timeout: int, cache_dir: Path | None = None) -> ModelResponse:
+def openai_response(
+    model: str,
+    input_text: str,
+    *,
+    timeout: int,
+    cache_dir: Path | None = None,
+    params: dict[str, Any] | None = None,
+) -> ModelResponse:
     cache = cache_dir or Path(os.environ.get("AGENTICEVALS_CACHE_DIR", ".cache/agenticevals")).expanduser()
     use_cache = os.environ.get("AGENTICEVALS_USE_CACHE", "true").lower() != "false"
     cache.mkdir(parents=True, exist_ok=True)
-    key = hashlib.sha256(json.dumps({"provider": "openai", "model": model, "input": input_text}, sort_keys=True).encode()).hexdigest()
+    key = _cache_key("openai", model, input_text, params)
     cache_path = cache / f"{key}.json"
     if use_cache and cache_path.exists():
         payload = json.loads(cache_path.read_text(encoding="utf-8"))
