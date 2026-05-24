@@ -9,7 +9,7 @@ from typing import Any
 from agenticevals.baselines import eval_is_saturated
 from agenticevals.config import Settings
 from agenticevals.environments import EnvironmentOptions, load_environment
-from agenticevals.stats import bootstrap_ci
+from agenticevals.stats import bootstrap_ci, wilson_ci
 
 
 def run_environment_baselines(
@@ -96,11 +96,11 @@ def _summarize_agent(agent: str, trial_summaries: list[dict[str, Any]], trials: 
         "rollouts": len(rollouts),
         "passed": sum(1 for value in passed_rollouts if value),
         "pass_rate": _mean(passed_rollouts),
-        "pass_rate_ci": bootstrap_ci(passed_rollouts, seed=_seed(agent, "pass_rate")),
+        "pass_rate_ci": wilson_ci(passed_rollouts),
         "pass_at_1": _mean(first_attempts),
-        "pass_at_1_ci": bootstrap_ci(first_attempts, seed=_seed(agent, "pass_at_1")),
+        "pass_at_1_ci": wilson_ci(first_attempts),
         "pass_power_k": _mean(pass_power_items),
-        "pass_power_k_ci": bootstrap_ci(pass_power_items, seed=_seed(agent, "pass_power_k")),
+        "pass_power_k_ci": wilson_ci(pass_power_items),
         "mean_reward_rate": _mean(reward_rates),
         "mean_reward_rate_ci": bootstrap_ci(reward_rates, seed=_seed(agent, "reward_rate")),
         "total_cost_usd": round(total_cost, 8) if total_cost is not None else None,
