@@ -153,6 +153,28 @@ Tasks can declare tools and the HTTP endpoints that execute them:
 
 Tool dispatches are recorded in `trajectory.jsonl` as `tool.dispatch` events and in `trajectory.json` as typed tool-call/tool-result steps.
 
+## Score Weights
+
+The optional `score` block sets the point budget for each default verifier dimension. Magnitudes are relative — the reward is the weight-normalized average across all emitted criteria.
+
+```json
+{
+  "score": {
+    "command_checks": 40,
+    "file_checks": 20,
+    "browser_checks": 20,
+    "git_policy": 20,
+    "expected_actions": 25,
+    "audit_safety": 25,
+    "tool_dispatch": 25,
+    "tool_argument": 25,
+    "tool_safety": 25
+  }
+}
+```
+
+All nine are configurable; the values above are the defaults. Raise `tool_*` relative to `file_checks`, for example, to weight tool correctness more heavily.
+
 ## Verifiers
 
 Runs write `reward.json` and `reward-details.json` from verifier components. If `verifiers` is omitted, the runner builds default verifiers from `checks`, `policies`, `tools`, `expected_actions`, and `safety_checks`.

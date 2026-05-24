@@ -136,7 +136,30 @@ Generate local baseline artifacts for an environment:
 python3 -m agenticevals env-baselines examples.tau_retail_env:TauRetailEnv --agents scripted,noop --max-items 3 --trials 2
 ```
 
-Baseline artifacts include pass@1, pass^k, bootstrap confidence intervals, and cost-per-success when the adapter exposes token/cost accounting.
+Baseline artifacts include pass@1, pass^k, confidence intervals, and cost-per-success when the adapter exposes token/cost accounting. Proportion metrics (`pass_rate`, `pass_at_1`, `pass_power_k`) use a **Wilson score interval**, which stays non-degenerate at 0%/100% where a percentile bootstrap collapses to zero width; continuous metrics keep bootstrap CIs. `pass^k` is the unbiased `C(c,k)/C(n,k)` estimator. A `saturated` flag marks suites where every agent lands at the same extreme (no discriminative signal).
+
+## Judge Calibration & Release Gating
+
+LLM-judge verifiers (`llm_rubric`) return a reason-first **binary verdict**. Useful per-rubric config keys:
+
+- `rubric`: the grading instruction.
+- `threshold`: pass threshold when only a `score` is returned (default `0.5`).
+- `repetitions`: judge the trajectory N times and majority-vote (ties break on mean score), surfacing variance a single cached call hides.
+- `transcript_max_chars` / `transcript_max_steps`: how much trajectory the judge sees (default 500 chars/step).
+- `provider` / `model` / `timeout` / `max_tokens`.
+
+Validate a judge before trusting its scores:
+
+```bash
+# 1. Sample real judge decisions from runs into a balanced labeling template
+python3 -m agenticevals make-calibration-set runs/<suite-run-dir> -o labels.jsonl --size 100
+# 2. Fill in human_passed for each row, then compute agreement
+python3 -m agenticevals calibrate-judge labels.jsonl
+# 3. Gate a release on baselines + judge agreement
+python3 -m agenticevals release-gate --baselines runs/<baselines-dir>/baselines.json --calibration labels.calibration.json
+```
+
+The calibration report includes accuracy, Cohen's kappa, and per-class **TPR/TNR**. The release gate enforces kappa, TPR/TNR (≥0.70 when present), a minimum labeled-sample size, and rejects a saturated baseline.
 
 ## Data Export
 
@@ -199,8 +222,8 @@ AGENTICEVALS_TRACES_PATH="/path/to/agenticevals/traces"
 AGENTICEVALS_ENV_TIMEOUT=10000
 AGENTICEVALS_ACTION_SHORT_TIMEOUT=60
 AGENTICEVALS_ACTION_LONG_TIMEOUT=10000
-AGENTICEVALS_AGENT_MAX_STEPS=50
-AGENTICEVALS_MODEL_MAX_RETRIES=3
+AGENTICEVALS_AGENT_MAX_STEPS=50      # effective ceiling: caps each task's limits.max_steps
+AGENTICEVALS_MODEL_MAX_RETRIES=3     # retries on 429/5xx/network with exponential backoff
 
 AGENTICEVALS_DEFAULT_AGENT=scripted
 AGENTICEVALS_HTTP_AGENT_URL="http://127.0.0.1:8000/run"
