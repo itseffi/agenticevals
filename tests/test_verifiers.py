@@ -5,10 +5,11 @@ from pathlib import Path
 
 from agenticevals.config import Settings
 from agenticevals.runner import run_task
-from agenticevals.schema import AgentSpec, TaskSpec, VerifierSpec, WorkspaceSpec
+from agenticevals.schema import AgentSpec, ExpectedActionSpec, ScoreWeights, TaskSpec, VerifierSpec, WorkspaceSpec
 from agenticevals.trace import Trajectory
 from agenticevals.trajectory_export import build_typed_trajectory
 from agenticevals.verifiers import REWARD_DETAILS_SCHEMA_VERSION, REWARD_SCHEMA_VERSION, VerifierContext, run_verifiers
+from agenticevals.verifiers.runner import default_verifier_specs
 
 
 def _context(task: TaskSpec, trace: Trajectory) -> VerifierContext:
@@ -93,6 +94,30 @@ class VerifierTests(unittest.TestCase):
         self.assertTrue(result.passed)
         self.assertEqual({criterion.verifier_type for criterion in result.criteria}, {"trajectory_check", "llm_rubric"})
         self.assertAlmostEqual(result.reward, 0.9)
+
+
+class DefaultVerifierWeightTests(unittest.TestCase):
+    def _specs(self, score: ScoreWeights):
+        task = TaskSpec(
+            id="weights",
+            title="Weights",
+            prompt="do it",
+            workspace=WorkspaceSpec(fixture_path="."),
+            agent=AgentSpec(kind="noop"),
+            expected_actions=[ExpectedActionSpec(service="gmail", action_key="drafts", min_count=1)],
+            score=score,
+        )
+        return default_verifier_specs(_context(task, Trajectory(task_id=task.id)))
+
+    def test_expected_actions_weight_defaults_preserve_legacy_value(self):
+        specs = self._specs(ScoreWeights())
+        state = next(spec for spec in specs if spec.type == "state_check")
+        self.assertEqual(state.config["expected_actions_weight"], 25.0)
+
+    def test_expected_actions_weight_is_drawn_from_task_score(self):
+        specs = self._specs(ScoreWeights(expected_actions=99))
+        state = next(spec for spec in specs if spec.type == "state_check")
+        self.assertEqual(state.config["expected_actions_weight"], 99.0)
 
 
 if __name__ == "__main__":
