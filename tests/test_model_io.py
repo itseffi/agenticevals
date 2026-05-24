@@ -1,7 +1,7 @@
 import unittest
 import urllib.error
 
-from agenticevals.model_io import _gemini_request, _is_retryable, _with_retries
+from agenticevals.model_io import _cache_key, _gemini_request, _is_retryable, _with_retries
 
 
 class RetryTests(unittest.TestCase):
@@ -48,6 +48,18 @@ class RetryTests(unittest.TestCase):
         self.assertTrue(_is_retryable(urllib.error.HTTPError("u", 500, "", {}, None)))
         self.assertTrue(_is_retryable(urllib.error.URLError("down")))
         self.assertFalse(_is_retryable(urllib.error.HTTPError("u", 404, "", {}, None)))
+
+
+class CacheKeyTests(unittest.TestCase):
+    def test_same_inputs_produce_same_key(self):
+        a = _cache_key("openai", "gpt-4o-mini", "hello", {"temperature": 0})
+        b = _cache_key("openai", "gpt-4o-mini", "hello", {"temperature": 0})
+        self.assertEqual(a, b)
+
+    def test_differing_params_produce_different_keys(self):
+        cold = _cache_key("openai", "gpt-4o-mini", "hello", {"temperature": 0})
+        hot = _cache_key("openai", "gpt-4o-mini", "hello", {"temperature": 1})
+        self.assertNotEqual(cold, hot)
 
 
 class GeminiRequestTests(unittest.TestCase):
