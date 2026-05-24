@@ -6,7 +6,7 @@ from pathlib import Path
 from agenticevals.baselines import eval_is_saturated, run_baselines
 from agenticevals.calibration import calibrate_judge_file, calibration_report, cohen_kappa
 from agenticevals.config import Settings
-from agenticevals.environment_baselines import run_environment_baselines
+from agenticevals.environment_baselines import _summarize_agent, run_environment_baselines
 from agenticevals.release_gate import evaluate_release_gate
 from agenticevals.review_cli import filtered_review_rows
 from agenticevals.stats import bootstrap_ci
@@ -152,6 +152,16 @@ class ReleaseMetricsTests(unittest.TestCase):
         self.assertEqual(len(rows), 1)
         self.assertIn("pass_rate_ci", baselines["rows"][0])
         self.assertTrue(gate["passed"])
+
+    def test_env_pass_power_k_uses_shared_unbiased_estimator(self):
+        # One item, 3 observed trials [pass, pass, fail], k=2. The unbiased
+        # pass^k over all observations is C(2,2)/C(3,2) = 1/3, not 1.0.
+        summaries = [
+            {"run_dir": "r", "trial_index": i, "rollouts": [{"item_id": "a", "reward": {"passed": p}}]}
+            for i, p in enumerate([True, True, False])
+        ]
+        row = _summarize_agent("scripted", summaries, trials=2)
+        self.assertAlmostEqual(row["pass_power_k"], 1 / 3)
 
     def test_environment_baselines_report_pass_power_k(self):
         with tempfile.TemporaryDirectory() as tmp:
