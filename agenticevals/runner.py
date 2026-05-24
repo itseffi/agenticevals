@@ -5,7 +5,7 @@ import shutil
 import subprocess
 import time
 from contextlib import nullcontext
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from pathlib import Path
 
 from .agents.factory import create_agent
@@ -92,8 +92,20 @@ class AgentRuntime:
         return self.dispatcher.dispatch(tool_name, arguments)
 
 
+def cap_task_steps(task: TaskSpec, settings: Settings) -> TaskSpec:
+    """Clamp a task's step budget to the operator-wide AGENTICEVALS_AGENT_MAX_STEPS.
+
+    Agent loops read ``task.limits.max_steps`` directly, so applying the cap here
+    gives the setting effect across every adapter without threading it through each.
+    """
+    if task.limits.max_steps <= settings.agent_max_steps:
+        return task
+    return replace(task, limits=replace(task.limits, max_steps=settings.agent_max_steps))
+
+
 def run_task(task: TaskSpec, settings: Settings, agent_override: str | None = None, *, use_sandbox_server: bool = False) -> RunResult:
     settings.ensure_dirs()
+    task = cap_task_steps(task, settings)
     workspace = WorkspaceManager(settings.runs_path).create(task)
     _write_task_artifacts(task, workspace.run_dir)
     trace = Trajectory(task_id=task.id)
