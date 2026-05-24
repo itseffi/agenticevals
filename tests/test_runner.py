@@ -1,10 +1,34 @@
+import dataclasses
 import tempfile
 import unittest
 from pathlib import Path
 
 from agenticevals.config import Settings
-from agenticevals.runner import run_task
-from agenticevals.schema import TaskSpec
+from agenticevals.runner import cap_task_steps, run_task
+from agenticevals.schema import AgentSpec, LimitsSpec, TaskSpec, WorkspaceSpec
+
+
+def _cap_task(max_steps: int) -> TaskSpec:
+    return TaskSpec(
+        id="cap",
+        title="Cap",
+        prompt="noop",
+        workspace=WorkspaceSpec(fixture_path="."),
+        agent=AgentSpec(kind="noop"),
+        limits=LimitsSpec(max_steps=max_steps),
+    )
+
+
+class CapStepsTests(unittest.TestCase):
+    def test_caps_task_steps_to_agent_max_steps(self):
+        settings = dataclasses.replace(Settings.from_env(root=Path(".")), agent_max_steps=10)
+        capped = cap_task_steps(_cap_task(100), settings)
+        self.assertEqual(capped.limits.max_steps, 10)
+
+    def test_leaves_task_below_cap_untouched(self):
+        settings = dataclasses.replace(Settings.from_env(root=Path(".")), agent_max_steps=50)
+        task = _cap_task(5)
+        self.assertIs(cap_task_steps(task, settings), task)
 
 
 class RunnerTests(unittest.TestCase):
