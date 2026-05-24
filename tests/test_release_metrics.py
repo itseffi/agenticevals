@@ -150,6 +150,8 @@ class ReleaseMetricsTests(unittest.TestCase):
         self.assertEqual(row["pass_at_1"], 1.0)
         self.assertEqual(row["pass_power_k"], 1.0)
         self.assertIn("cost_per_success_usd", row)
+        # scripted passes everything -> a saturated, non-discriminative suite.
+        self.assertTrue(result["saturated"])
 
 
 if __name__ == "__main__":
