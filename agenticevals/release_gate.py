@@ -22,6 +22,9 @@ def evaluate_release_gate(
     checks.append(_check("baseline_agent_count", len(unique_agents) >= min_agents, f"agents={len(unique_agents)}, required={min_agents}"))
     checks.append(_check("baseline_has_ci", all("pass_rate_ci" in row for row in rows), "all baseline rows include pass_rate_ci"))
     checks.append(_check("baseline_has_dataset", bool(baselines.get("suite")), f"suite={baselines.get('suite', '')}"))
+    # A saturated suite (every agent at the same extreme) cannot show whether a
+    # change helped or hurt, so it should not gate a release.
+    checks.append(_check("baseline_not_saturated", not baselines.get("saturated", False), f"saturated={bool(baselines.get('saturated', False))}"))
     if calibration_path is not None:
         calibration = _read_json(calibration_path)
         kappa = float(calibration.get("kappa", 0.0) or 0.0)

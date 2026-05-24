@@ -86,6 +86,27 @@ class ReleaseMetricsTests(unittest.TestCase):
         self.assertFalse(tpr_check["passed"])
         self.assertFalse(gate["passed"])
 
+    def test_release_gate_fails_on_saturated_baseline(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            baselines_path = root / "baselines.json"
+            baselines_path.write_text(
+                json.dumps(
+                    {
+                        "suite": "s",
+                        "saturated": True,
+                        "rows": [{"agent": a, "pass_rate_ci": {}} for a in ("scripted", "noop", "model-loop")],
+                    }
+                ),
+                encoding="utf-8",
+            )
+            calibration_path = root / "calibration.json"
+            calibration_path.write_text(json.dumps({"kappa": 0.9, "n": 100}), encoding="utf-8")
+            gate = evaluate_release_gate(baselines_path=baselines_path, calibration_path=calibration_path)
+        check = next(c for c in gate["checks"] if c["name"] == "baseline_not_saturated")
+        self.assertFalse(check["passed"])
+        self.assertFalse(gate["passed"])
+
     def test_release_gate_fails_on_small_calibration_sample(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
