@@ -30,39 +30,47 @@ class LLMRubricVerifier(BaseVerifier):
                     evidence={"threshold": threshold},
                 )
             ]
+        threshold = float(spec.config.get("threshold", 0.5))
         try:
             judged = self._judge(context, spec)
-            score = float(judged.get("score", 0.0))
-            threshold = float(spec.config.get("threshold", 0.5))
-            passed = bool(judged.get("passed", score >= threshold))
-            detail = str(judged.get("reason", ""))
-            return [
-                criterion(
-                    name=spec.name or "llm_rubric",
-                    verifier_type=self.verifier_type,
-                    score=score,
-                    weight=spec.weight,
-                    passed=passed,
-                    detail=detail,
-                    required=spec.required,
-                    deterministic=False,
-                    evidence={"threshold": threshold, "judge": judged},
-                )
-            ]
         except Exception as exc:
+            # The judge erroring (transient API failure, unparseable output) is
+            # not evidence about the agent. Abstain: weight 0 so it cannot drag
+            # down the weighted reward, and non-required so it cannot fail an
+            # otherwise-passing run. The error stays recorded for inspection.
             return [
                 criterion(
                     name=spec.name or "llm_rubric",
                     verifier_type=self.verifier_type,
                     score=0.0,
-                    weight=spec.weight,
+                    weight=0.0,
                     passed=False,
-                    detail=f"judge failed: {exc}",
-                    required=spec.required,
+                    detail=f"judge abstained: {exc}",
+                    required=False,
                     deterministic=False,
                     error=str(exc),
                 )
             ]
+        if "passed" in judged:
+            passed = bool(judged["passed"])
+            score = float(judged.get("score", 1.0 if passed else 0.0))
+        else:
+            score = float(judged.get("score", 0.0))
+            passed = score >= threshold
+        detail = str(judged.get("reason", ""))
+        return [
+            criterion(
+                name=spec.name or "llm_rubric",
+                verifier_type=self.verifier_type,
+                score=score,
+                weight=spec.weight,
+                passed=passed,
+                detail=detail,
+                required=spec.required,
+                deterministic=False,
+                evidence={"threshold": threshold, "judge": judged},
+            )
+        ]
 
     def _judge(self, context: VerifierContext, spec: VerifierSpec) -> dict[str, Any]:
         provider = str(spec.config.get("provider", "openai"))
@@ -87,8 +95,12 @@ def _rubric_prompt(context: VerifierContext, spec: VerifierSpec) -> str:
     rubric = str(spec.config.get("rubric", "Judge whether the agent satisfied the task."))
     transcript = _compact_transcript(context)
     return (
-        "You are grading an AI agent trajectory. Return only strict JSON with keys "
-        '"score" (number from 0 to 1), "passed" (boolean), and "reason" (short string).\n\n'
+        "You are grading an AI agent trajectory against a rubric. First reason about "
+        "whether the agent satisfied the task, then give a single binary verdict. "
+        "Return only strict JSON with keys "
+        '"reason" (short string justifying the verdict, written first) and '
+        '"passed" (boolean: true only if the rubric is fully satisfied). '
+        'You may optionally include "score" (number from 0 to 1).\n\n'
         f"Task:\n{context.task.prompt}\n\n"
         f"Rubric:\n{rubric}\n\n"
         f"Final response:\n{context.final_response}\n\n"
@@ -114,8 +126,20 @@ def _compact_transcript(context: VerifierContext) -> str:
 
 def _parse_json_object(text: str) -> dict[str, Any]:
     text = text.strip()
-    if text.startswith("```"):
-        text = text.strip("`")
-        if text.startswith("json"):
-            text = text[4:].strip()
-    return json.loads(text)
+    try:
+        return json.loads(text)
+    except json.JSONDecodeError:
+        pass
+    # Models often wrap JSON in prose or code fences. Decode the first balanced
+    # object rather than failing (which would force the judge to abstain).
+    decoder = json.JSONDecoder()
+    for start in range(len(text)):
+        if text[start] != "{":
+            continue
+        try:
+            obj, _ = decoder.raw_decode(text[start:])
+        except json.JSONDecodeError:
+            continue
+        if isinstance(obj, dict):
+            return obj
+    raise ValueError("no JSON object found in judge response")
