@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import gzip
 import json
+import math
 from pathlib import Path
 from typing import Iterable
 
@@ -179,14 +180,21 @@ def _reward_rows(root: Path, rollouts: list[dict]) -> list[dict]:
         if dimensions_path.exists():
             dimensions = json.loads(dimensions_path.read_text(encoding="utf-8"))
             for name in ["completion", "robustness", "communication", "safety"]:
+                value = float(dimensions.get(name, 0.0) or 0.0)
+                # Graduated dimensions (e.g. communication, partial completion)
+                # carry their fractional score for downstream RL/preference use;
+                # `partial` flags credit between 0 and 1 that a binary `passed`
+                # would otherwise discard.
                 rows.append(
                     {
                         "run_id": rollout.get("run_id"),
                         "environment": rollout.get("environment"),
                         "item_id": rollout.get("item_id"),
                         "component": name,
-                        "passed": dimensions.get(name, 0.0) >= 1.0,
-                        "value": dimensions.get(name, 0.0),
+                        "passed": math.isclose(value, 1.0) or value > 1.0,
+                        "partial": 0.0 < value < 1.0,
+                        "score": value,
+                        "value": value,
                         "max_value": 1.0,
                         "detail": dimensions.get("details", {}).get(name),
                         "source_rollout_path": rollout.get("source_rollout_path"),
