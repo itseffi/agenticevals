@@ -4,10 +4,11 @@ import hashlib
 import json
 import os
 import time
+import urllib.error
 import urllib.request
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any
+from typing import Any, Callable, TypeVar
 
 
 PRICES_PER_1K = {
@@ -52,6 +53,67 @@ class NativeToolResponse:
     raw: dict[str, Any] | None = None
 
 
+_T = TypeVar("_T")
+
+
+def _is_retryable(exc: BaseException) -> bool:
+    """Transient API failures worth retrying: rate limits, server errors, network.
+
+    Client errors (4xx other than 429) are deterministic and not retried.
+    """
+    if isinstance(exc, urllib.error.HTTPError):
+        return exc.code == 429 or exc.code >= 500
+    if isinstance(exc, urllib.error.URLError):
+        return True
+    return isinstance(exc, TimeoutError)
+
+
+def _retry_attempts() -> int:
+    try:
+        return max(1, int(os.environ.get("AGENTICEVALS_MODEL_MAX_RETRIES", "3")))
+    except ValueError:
+        return 3
+
+
+def _with_retries(fn: Callable[[], _T], *, attempts: int, sleep: Callable[[float], None] = time.sleep) -> _T:
+    """Call `fn`, retrying transient failures with exponential backoff.
+
+    `attempts` is the total number of tries. Non-retryable errors propagate
+    immediately so a malformed request is not hammered.
+    """
+    last: BaseException | None = None
+    for index in range(max(1, attempts)):
+        try:
+            return fn()
+        except Exception as exc:  # noqa: BLE001 - re-raised below if not retryable
+            if not _is_retryable(exc) or index == attempts - 1:
+                raise
+            last = exc
+            sleep(min(2.0**index * 0.5, 8.0))
+    assert last is not None  # unreachable: loop either returns or raises
+    raise last
+
+
+def _gemini_request(model: str, body: dict[str, Any], api_key: str) -> urllib.request.Request:
+    # Pass the key as a header, not a URL query param: query strings leak into
+    # proxy/access logs and crash dumps.
+    url = f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent"
+    return urllib.request.Request(
+        url,
+        data=json.dumps(body).encode("utf-8"),
+        headers={"Content-Type": "application/json", "x-goog-api-key": api_key},
+        method="POST",
+    )
+
+
+def _urlopen_json(request: urllib.request.Request, timeout: int) -> dict[str, Any]:
+    def _call() -> dict[str, Any]:
+        with urllib.request.urlopen(request, timeout=timeout) as response:
+            return json.loads(response.read().decode("utf-8"))
+
+    return _with_retries(_call, attempts=_retry_attempts())
+
+
 class RateLimiter:
     def __init__(self, min_interval_seconds: float):
         self.min_interval_seconds = min_interval_seconds
@@ -86,8 +148,7 @@ def openai_response(model: str, input_text: str, *, timeout: int, cache_dir: Pat
         headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"},
         method="POST",
     )
-    with urllib.request.urlopen(request, timeout=timeout) as response:
-        raw = json.loads(response.read().decode("utf-8"))
+    raw = _urlopen_json(request, timeout)
     text = _extract_response_text(raw)
     usage = raw.get("usage", {})
     cost = estimate_cost(model, usage)
@@ -134,8 +195,7 @@ def openai_responses_native(
             headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"},
             method="POST",
         )
-        with urllib.request.urlopen(request, timeout=timeout) as response:
-            raw = json.loads(response.read().decode("utf-8"))
+        raw = _urlopen_json(request, timeout)
     latency_ms = (time.monotonic() - started) * 1000
     if fixture_provider is None:
         cache_path.write_text(json.dumps(raw, indent=2, sort_keys=True), encoding="utf-8")
@@ -172,15 +232,8 @@ def gemini_generate_content(
         rpm = float(os.environ.get("AGENTICEVALS_MIN_REQUEST_INTERVAL_SECONDS", "0"))
         if rpm > 0:
             RateLimiter(rpm).wait()
-        url = f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent?key={api_key}"
-        request = urllib.request.Request(
-            url,
-            data=json.dumps(body).encode("utf-8"),
-            headers={"Content-Type": "application/json"},
-            method="POST",
-        )
-        with urllib.request.urlopen(request, timeout=timeout) as response:
-            raw = json.loads(response.read().decode("utf-8"))
+        request = _gemini_request(model, body, api_key)
+        raw = _urlopen_json(request, timeout)
     latency_ms = (time.monotonic() - started) * 1000
     if fixture_provider is None:
         cache_path.write_text(json.dumps(raw, indent=2, sort_keys=True), encoding="utf-8")
@@ -282,8 +335,7 @@ def anthropic_messages(
             },
             method="POST",
         )
-        with urllib.request.urlopen(request, timeout=timeout) as response:
-            raw = json.loads(response.read().decode("utf-8"))
+        raw = _urlopen_json(request, timeout)
 
     latency_ms = (time.monotonic() - started) * 1000
     if fixture_provider is None:
