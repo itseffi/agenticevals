@@ -1,8 +1,60 @@
 from __future__ import annotations
 
 import json
+import random
 from pathlib import Path
 from typing import Any
+
+
+def build_calibration_set(run_dir: Path, *, sample_size: int = 100, seed: int = 0) -> list[dict[str, Any]]:
+    """Sample real llm_rubric judge decisions from runs into a labeling template.
+
+    Walks ``reward-details.json`` files, collects non-fixture llm_rubric criteria,
+    and emits rows carrying the judge's verdict plus an empty ``human_passed`` for
+    an expert to fill. The result is class-balanced (~50/50 on the judge verdict)
+    so the labeled set is suitable for ``calibrate-judge``.
+    """
+    root = Path(run_dir).expanduser().resolve()
+    rows: list[dict[str, Any]] = []
+    for details_path in sorted(root.rglob("reward-details.json")):
+        data = json.loads(details_path.read_text(encoding="utf-8"))
+        for crit in data.get("criteria", []):
+            if crit.get("verifier_type") != "llm_rubric":
+                continue
+            if crit.get("evidence", {}).get("fixture"):
+                continue
+            rows.append(
+                {
+                    "source": str(details_path),
+                    "criterion": crit.get("name", "llm_rubric"),
+                    "judge_passed": bool(crit.get("passed")),
+                    "judge_score": float(crit.get("score", 0.0) or 0.0),
+                    "judge_reason": str(crit.get("detail", "")),
+                    "human_passed": None,
+                }
+            )
+    return _balance_and_sample(rows, sample_size, seed)
+
+
+def write_calibration_set(run_dir: Path, *, output: Path, sample_size: int = 100, seed: int = 0) -> dict[str, Any]:
+    rows = build_calibration_set(run_dir, sample_size=sample_size, seed=seed)
+    target = output.expanduser().resolve()
+    target.parent.mkdir(parents=True, exist_ok=True)
+    target.write_text("".join(json.dumps(row, sort_keys=True) + "\n" for row in rows), encoding="utf-8")
+    passed = sum(1 for row in rows if row["judge_passed"])
+    return {"output": str(target), "n": len(rows), "judge_passed": passed, "judge_failed": len(rows) - passed}
+
+
+def _balance_and_sample(rows: list[dict[str, Any]], sample_size: int, seed: int) -> list[dict[str, Any]]:
+    rng = random.Random(seed)
+    passed = [row for row in rows if row["judge_passed"]]
+    failed = [row for row in rows if not row["judge_passed"]]
+    rng.shuffle(passed)
+    rng.shuffle(failed)
+    half = max(1, sample_size // 2)
+    combined = passed[:half] + failed[:half]
+    rng.shuffle(combined)
+    return combined
 
 
 def calibrate_judge_file(path: Path, *, output: Path | None = None) -> dict[str, Any]:
