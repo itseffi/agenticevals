@@ -24,10 +24,10 @@ class LLMRubricVerifier(BaseVerifier):
                     score=score,
                     weight=spec.weight,
                     passed=passed,
-                    detail=str(spec.config.get("detail", "fixture rubric score")),
+                    detail=str(spec.config.get("detail", "fixture rubric score (not a real LLM judgment)")),
                     required=spec.required,
                     deterministic=True,
-                    evidence={"threshold": threshold},
+                    evidence={"threshold": threshold, "fixture": True},
                 )
             ]
         threshold = float(spec.config.get("threshold", 0.5))

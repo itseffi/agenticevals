@@ -62,6 +62,16 @@ class RubricTranscriptTests(unittest.TestCase):
         self.assertNotIn("A" * 11, transcript)
 
 
+class RubricFixtureGuardTests(unittest.TestCase):
+    def test_fixture_score_is_flagged_as_not_a_real_judgment(self):
+        verifier = LLMRubricVerifier()
+        spec = VerifierSpec(type="llm_rubric", config={"fixture_score": 0.9, "threshold": 0.5})
+        result = verifier.verify(_context(), spec)[0]
+        # A hardcoded score must be distinguishable from a real LLM judgment so
+        # it cannot silently masquerade as one in aggregated metrics.
+        self.assertTrue(result.evidence.get("fixture"))
+
+
 class RubricParseTests(unittest.TestCase):
     def test_parses_prose_wrapped_json(self):
         text = 'Here is my verdict: {"reason": "ok", "passed": true} — thanks!'
