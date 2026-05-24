@@ -11,6 +11,18 @@ from agenticevals.stats import bootstrap_ci
 from agenticevals.suites import run_suite
 
 
+def eval_is_saturated(pass_rates: list[float]) -> bool:
+    """True when every agent lands at the same extreme (all 0.0 or all 1.0).
+
+    A saturated suite gives no discriminative signal — Phoenix recommends keeping
+    capability evals in the 50-80% range so prompt/model changes remain visible.
+    """
+    if not pass_rates:
+        return False
+    unique = set(pass_rates)
+    return unique == {0.0} or unique == {1.0}
+
+
 def run_baselines(
     suite_path: Path,
     settings: Settings,
@@ -45,6 +57,7 @@ def run_baselines(
         "agents": agents,
         "generated_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
         "rows": sorted(rows, key=lambda row: (-row["pass_rate"], -row["mean_score"], row["agent"])),
+        "saturated": eval_is_saturated([row["pass_rate"] for row in rows]),
     }
     (run_dir / "baselines.json").write_text(json.dumps(payload, indent=2, sort_keys=True), encoding="utf-8")
     (run_dir / "RESULTS.md").write_text(_results_markdown(payload), encoding="utf-8")
