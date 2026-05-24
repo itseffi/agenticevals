@@ -7,7 +7,7 @@ from pathlib import Path
 from typing import Any
 
 from agenticevals.config import Settings
-from agenticevals.stats import bootstrap_ci
+from agenticevals.stats import bootstrap_ci, wilson_ci
 from agenticevals.suites import run_suite
 
 
@@ -46,7 +46,7 @@ def run_baselines(
                 "tasks": summary["total"],
                 "passed": summary["passed"],
                 "pass_rate": summary["pass_rate"],
-                "pass_rate_ci": bootstrap_ci(passed, seed=_seed(agent, "pass_rate")),
+                "pass_rate_ci": wilson_ci(passed),
                 "mean_score": summary["mean_score"],
                 "mean_score_ci": bootstrap_ci(scores, seed=_seed(agent, "mean_score")),
             }
