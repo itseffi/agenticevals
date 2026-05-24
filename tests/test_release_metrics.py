@@ -3,7 +3,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from agenticevals.baselines import run_baselines
+from agenticevals.baselines import eval_is_saturated, run_baselines
 from agenticevals.calibration import calibrate_judge_file, calibration_report, cohen_kappa
 from agenticevals.config import Settings
 from agenticevals.environment_baselines import run_environment_baselines
@@ -39,6 +39,13 @@ class ReleaseMetricsTests(unittest.TestCase):
             output_exists = Path(report["output"]).exists()
         self.assertEqual(report["n"], 3)
         self.assertTrue(output_exists)
+
+    def test_saturation_detected_only_at_shared_extreme(self):
+        self.assertTrue(eval_is_saturated([1.0, 1.0, 1.0]))  # everyone passes -> no signal
+        self.assertTrue(eval_is_saturated([0.0, 0.0]))       # nobody passes -> no signal
+        self.assertFalse(eval_is_saturated([1.0, 0.5]))      # discriminates between agents
+        self.assertFalse(eval_is_saturated([0.5, 0.5]))      # mid-range, not an extreme
+        self.assertFalse(eval_is_saturated([]))
 
     def test_calibration_reports_tpr_and_tnr_for_binary_labels(self):
         labels = [
