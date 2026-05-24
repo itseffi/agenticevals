@@ -5,7 +5,12 @@ from agenticevals.schema import AgentSpec, TaskSpec, VerifierSpec, WorkspaceSpec
 from agenticevals.trace import Trajectory
 from agenticevals.trajectory_export import build_typed_trajectory
 from agenticevals.verifiers.base import VerifierContext
-from agenticevals.verifiers.llm_rubric import LLMRubricVerifier, _parse_json_object, _rubric_prompt
+from agenticevals.verifiers.llm_rubric import (
+    LLMRubricVerifier,
+    _compact_transcript,
+    _parse_json_object,
+    _rubric_prompt,
+)
 
 
 def _context(final_response: str = "Done.") -> VerifierContext:
@@ -41,6 +46,20 @@ class RubricPromptTests(unittest.TestCase):
     def test_prompt_requests_binary_verdict(self):
         prompt = _rubric_prompt(_context(), VerifierSpec(type="llm_rubric", config={}))
         self.assertIn("boolean", prompt.lower())
+
+
+class RubricTranscriptTests(unittest.TestCase):
+    def test_default_truncation_is_500_chars(self):
+        spec = VerifierSpec(type="llm_rubric", config={})
+        transcript = _compact_transcript(_context("A" * 1000), spec)
+        self.assertIn("A" * 500, transcript)
+        self.assertNotIn("A" * 501, transcript)
+
+    def test_transcript_max_chars_is_configurable(self):
+        spec = VerifierSpec(type="llm_rubric", config={"transcript_max_chars": 10})
+        transcript = _compact_transcript(_context("A" * 1000), spec)
+        self.assertIn("A" * 10, transcript)
+        self.assertNotIn("A" * 11, transcript)
 
 
 class RubricParseTests(unittest.TestCase):

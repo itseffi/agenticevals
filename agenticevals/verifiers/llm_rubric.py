@@ -93,7 +93,7 @@ class LLMRubricVerifier(BaseVerifier):
 
 def _rubric_prompt(context: VerifierContext, spec: VerifierSpec) -> str:
     rubric = str(spec.config.get("rubric", "Judge whether the agent satisfied the task."))
-    transcript = _compact_transcript(context)
+    transcript = _compact_transcript(context, spec)
     return (
         "You are grading an AI agent trajectory against a rubric. First reason about "
         "whether the agent satisfied the task, then give a single binary verdict. "
@@ -108,19 +108,22 @@ def _rubric_prompt(context: VerifierContext, spec: VerifierSpec) -> str:
     )
 
 
-def _compact_transcript(context: VerifierContext) -> str:
+def _compact_transcript(context: VerifierContext, spec: VerifierSpec) -> str:
     rows: list[str] = []
-    max_steps = int(context.task.limits.max_steps or 50)
+    max_steps = int(spec.config.get("transcript_max_steps", context.task.limits.max_steps or 50))
+    # Per-field character cap. Truncating too aggressively can hide the actual
+    # failure from the judge, so make it tunable per rubric.
+    cap = int(spec.config.get("transcript_max_chars", 500))
     for step in context.trajectory.steps[:max_steps]:
         if step.message:
-            rows.append(f"{step.index}. {step.source}/{step.kind}: {step.message[:500]}")
+            rows.append(f"{step.index}. {step.source}/{step.kind}: {step.message[:cap]}")
         for call in step.tool_calls:
-            rows.append(f"{step.index}. tool_call {call.name} args={json.dumps(call.arguments, sort_keys=True, default=str)[:500]}")
+            rows.append(f"{step.index}. tool_call {call.name} args={json.dumps(call.arguments, sort_keys=True, default=str)[:cap]}")
         for result in step.tool_results:
             status = "error" if result.is_error else "ok"
-            rows.append(f"{step.index}. tool_result {result.name} status={status} content={str(result.content)[:500]}")
+            rows.append(f"{step.index}. tool_result {result.name} status={status} content={str(result.content)[:cap]}")
         if step.observation is not None and not step.tool_results:
-            rows.append(f"{step.index}. observation {step.kind}: {str(step.observation)[:500]}")
+            rows.append(f"{step.index}. observation {step.kind}: {str(step.observation)[:cap]}")
     return "\n".join(rows)
 
 
