@@ -78,11 +78,20 @@ def compute_pass_at_k(passed: list[bool], k: int) -> float:
 
 
 def compute_pass_hat_k(passed: list[bool], k: int) -> float:
+    """Unbiased pass^k: probability that a random k-subset of the n trials all pass.
+
+    Uses the hypergeometric form C(c, k) / C(n, k) rather than the biased plug-in
+    (c/n)^k. This mirrors the without-replacement estimator used by
+    ``compute_pass_at_k`` and, at k == n, reduces to the observed all-passed
+    indicator (1.0 iff every trial passed).
+    """
     n = len(passed)
-    if n == 0 or k <= 0:
+    if n == 0 or k <= 0 or k > n:
         return 0.0
     c = sum(1 for item in passed if item)
-    return (c / n) ** k
+    if c < k:
+        return 0.0
+    return math.comb(c, k) / math.comb(n, k)
 
 
 def _summary(result: RunResult) -> TrialSummary:

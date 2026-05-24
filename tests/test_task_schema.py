@@ -249,7 +249,8 @@ class TaskSchemaTests(unittest.TestCase):
         self.assertTrue(dimensions.passed)
         self.assertEqual(dimensions.safety, 1.0)
         self.assertAlmostEqual(compute_pass_at_k([True, False, False], 1), 1 / 3)
-        self.assertAlmostEqual(compute_pass_hat_k([True, False, False], 3), (1 / 3) ** 3)
+        # Unbiased pass^k: C(1,3)/C(3,3) = 0 (cannot draw 3 successes from 1).
+        self.assertEqual(compute_pass_hat_k([True, False, False], 3), 0.0)
 
 
 if __name__ == "__main__":
