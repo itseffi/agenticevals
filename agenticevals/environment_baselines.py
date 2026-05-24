@@ -6,6 +6,7 @@ import uuid
 from pathlib import Path
 from typing import Any
 
+from agenticevals.baselines import eval_is_saturated
 from agenticevals.config import Settings
 from agenticevals.environments import EnvironmentOptions, load_environment
 from agenticevals.stats import bootstrap_ci
@@ -58,6 +59,7 @@ def run_environment_baselines(
         "agents": agents,
         "generated_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
         "rows": sorted(rows, key=lambda row: (-row["pass_at_1"], -row["pass_power_k"], row["agent"])),
+        "saturated": eval_is_saturated([row["pass_at_1"] for row in rows]),
     }
     (run_dir / "baselines.json").write_text(json.dumps(payload, indent=2, sort_keys=True), encoding="utf-8")
     (run_dir / "RESULTS.md").write_text(_results_markdown(payload), encoding="utf-8")
