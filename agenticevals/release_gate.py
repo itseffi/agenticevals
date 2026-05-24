@@ -13,6 +13,7 @@ def evaluate_release_gate(
     min_kappa: float = 0.5,
     min_tpr: float = 0.7,
     min_tnr: float = 0.7,
+    min_n: int = 50,
 ) -> dict[str, Any]:
     baselines = _read_json(baselines_path)
     rows = baselines.get("rows", [])
@@ -33,6 +34,11 @@ def evaluate_release_gate(
         if "tnr" in calibration:
             tnr = float(calibration.get("tnr", 0.0) or 0.0)
             checks.append(_check("judge_tnr", tnr >= min_tnr, f"tnr={tnr:.3f}, required={min_tnr:.3f}"))
+        if "n" in calibration:
+            # A high kappa on a handful of labels is not trustworthy; require a
+            # minimum labeled-sample size before headlining judge scores.
+            n = int(calibration.get("n", 0) or 0)
+            checks.append(_check("judge_sample_size", n >= min_n, f"n={n}, required={min_n}"))
     else:
         checks.append(_check("judge_kappa", False, "missing calibration report"))
     return {
