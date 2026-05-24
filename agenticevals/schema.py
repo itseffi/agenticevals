@@ -102,10 +102,17 @@ class CheckSpec:
 
 @dataclass(frozen=True)
 class ScoreWeights:
+    # Point budgets per verifier dimension. Magnitudes are relative: the reward
+    # is the weight-normalized average across all emitted criteria.
     command_checks: int = 40
     file_checks: int = 20
     browser_checks: int = 20
     git_policy: int = 20
+    expected_actions: int = 25
+    audit_safety: int = 25
+    tool_dispatch: int = 25
+    tool_argument: int = 25
+    tool_safety: int = 25
 
 
 @dataclass(frozen=True)
