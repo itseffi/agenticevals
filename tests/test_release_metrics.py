@@ -4,7 +4,7 @@ import unittest
 from pathlib import Path
 
 from agenticevals.baselines import eval_is_saturated, run_baselines
-from agenticevals.calibration import calibrate_judge_file, calibration_report, cohen_kappa
+from agenticevals.calibration import build_calibration_set, calibrate_judge_file, calibration_report, cohen_kappa
 from agenticevals.config import Settings
 from agenticevals.environment_baselines import _summarize_agent, run_environment_baselines
 from agenticevals.release_gate import evaluate_release_gate
@@ -19,6 +19,46 @@ class ReleaseMetricsTests(unittest.TestCase):
         self.assertAlmostEqual(ci["mean"], 0.75)
         self.assertLessEqual(ci["low"], ci["mean"])
         self.assertGreaterEqual(ci["high"], ci["mean"])
+
+    def test_build_calibration_set_extracts_real_judge_decisions(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+
+            def write(sub, passed, score, fixture=False):
+                d = root / sub
+                d.mkdir(parents=True)
+                evidence = {"fixture": True} if fixture else {"judge": {"reason": "r"}}
+                (d / "reward-details.json").write_text(
+                    json.dumps(
+                        {
+                            "criteria": [
+                                {
+                                    "name": "llm_rubric",
+                                    "verifier_type": "llm_rubric",
+                                    "score": score,
+                                    "weight": 1.0,
+                                    "passed": passed,
+                                    "detail": "verdict",
+                                    "deterministic": False,
+                                    "evidence": evidence,
+                                    "error": "",
+                                }
+                            ]
+                        }
+                    ),
+                    encoding="utf-8",
+                )
+
+            write("a", True, 0.9)
+            write("b", False, 0.2)
+            write("c", True, 0.8)
+            write("fix", True, 1.0, fixture=True)  # hardcoded fixture, not a real judgment
+            rows = build_calibration_set(root, sample_size=100, seed=0)
+
+        self.assertEqual(len(rows), 3)  # fixture excluded
+        self.assertTrue(all(r["human_passed"] is None for r in rows))
+        self.assertTrue(all("judge_passed" in r and "judge_score" in r for r in rows))
+        self.assertEqual(sum(1 for r in rows if r["judge_passed"]), 2)
 
     def test_calibration_kappa_report(self):
         self.assertAlmostEqual(cohen_kappa(["pass", "fail"], ["pass", "fail"]), 1.0)

@@ -17,7 +17,7 @@ from .export import export_data, export_trajectories
 from .agents.factory import adapter_status
 from .authoring import scaffold_task, validate_task_quality
 from .baselines import run_baselines
-from .calibration import calibrate_judge_file
+from .calibration import calibrate_judge_file, write_calibration_set
 from .recompute import recompute_rewards
 from .release_gate import evaluate_release_gate
 from .review_cli import filtered_review_rows, format_review_rows
@@ -268,6 +268,20 @@ def cmd_calibrate_judge(args: argparse.Namespace) -> int:
     return 0 if result["kappa"] >= args.min_kappa else 2
 
 
+def cmd_make_calibration_set(args: argparse.Namespace) -> int:
+    result = write_calibration_set(
+        Path(args.run_dir),
+        output=Path(args.output),
+        sample_size=args.size,
+        seed=args.seed,
+    )
+    print(f"calibration set: n={result['n']} (judge_passed={result['judge_passed']}, judge_failed={result['judge_failed']}) -> {result['output']}")
+    print("Fill in human_passed for each row, then run: agenticevals calibrate-judge <file>")
+    if args.json:
+        print(json.dumps(result, indent=2, sort_keys=True))
+    return 0
+
+
 def cmd_release_gate(args: argparse.Namespace) -> int:
     result = evaluate_release_gate(
         baselines_path=Path(args.baselines),
@@ -505,6 +519,14 @@ def build_parser() -> argparse.ArgumentParser:
     calibrate.add_argument("--min-kappa", type=float, default=0.5)
     calibrate.add_argument("--json", action="store_true")
     calibrate.set_defaults(func=cmd_calibrate_judge)
+
+    make_calib = sub.add_parser("make-calibration-set", help="Sample llm_rubric judge decisions from runs into a balanced labeling template")
+    make_calib.add_argument("run_dir", help="Run, suite, or trial directory to sample reward-details.json from")
+    make_calib.add_argument("--output", "-o", required=True, help="Path to write the labeling JSONL")
+    make_calib.add_argument("--size", type=int, default=100, help="Target sample size (balanced across judge verdicts)")
+    make_calib.add_argument("--seed", type=int, default=0)
+    make_calib.add_argument("--json", action="store_true")
+    make_calib.set_defaults(func=cmd_make_calibration_set)
 
     gate = sub.add_parser("release-gate", help="Check v0.1 baseline and judge-calibration release criteria")
     gate.add_argument("--baselines", required=True, help="Path to baselines.json")
