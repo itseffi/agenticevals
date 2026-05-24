@@ -31,12 +31,18 @@ class LLMRubricVerifier(BaseVerifier):
                 )
             ]
         threshold = float(spec.config.get("threshold", 0.5))
-        try:
-            judged = self._judge(context, spec)
-        except Exception as exc:
-            # The judge erroring (transient API failure, unparseable output) is
-            # not evidence about the agent. Abstain: weight 0 so it cannot drag
-            # down the weighted reward, and non-required so it cannot fail an
+        repetitions = max(1, int(spec.config.get("repetitions", 1)))
+        judgments: list[dict[str, Any]] = []
+        last_error: Exception | None = None
+        for rep in range(repetitions):
+            try:
+                judgments.append(self._judge(context, spec, rep=rep))
+            except Exception as exc:  # noqa: BLE001 - aggregated/abstained below
+                last_error = exc
+        if not judgments:
+            # Every judge call failed (transient API error, unparseable output).
+            # That is not evidence about the agent. Abstain: weight 0 so it cannot
+            # drag down the weighted reward, and non-required so it cannot fail an
             # otherwise-passing run. The error stays recorded for inspection.
             return [
                 criterion(
@@ -45,38 +51,41 @@ class LLMRubricVerifier(BaseVerifier):
                     score=0.0,
                     weight=0.0,
                     passed=False,
-                    detail=f"judge abstained: {exc}",
+                    detail=f"judge abstained: {last_error}",
                     required=False,
                     deterministic=False,
-                    error=str(exc),
+                    error=str(last_error),
                 )
             ]
-        if "passed" in judged:
-            passed = bool(judged["passed"])
-            score = float(judged.get("score", 1.0 if passed else 0.0))
-        else:
-            score = float(judged.get("score", 0.0))
-            passed = score >= threshold
-        detail = str(judged.get("reason", ""))
+        verdict = _aggregate_judgments(judgments, threshold)
         return [
             criterion(
                 name=spec.name or "llm_rubric",
                 verifier_type=self.verifier_type,
-                score=score,
+                score=verdict["score"],
                 weight=spec.weight,
-                passed=passed,
-                detail=detail,
+                passed=verdict["passed"],
+                detail=verdict["reason"],
                 required=spec.required,
                 deterministic=False,
-                evidence={"threshold": threshold, "judge": judged},
+                evidence={
+                    "threshold": threshold,
+                    "repetitions": len(judgments),
+                    "votes": verdict["votes"],
+                    "judgments": judgments,
+                },
             )
         ]
 
-    def _judge(self, context: VerifierContext, spec: VerifierSpec) -> dict[str, Any]:
+    def _judge(self, context: VerifierContext, spec: VerifierSpec, *, rep: int = 0) -> dict[str, Any]:
         provider = str(spec.config.get("provider", "openai"))
         model = str(spec.config.get("model", "gpt-4o-mini" if provider == "openai" else "claude-sonnet-4-6"))
         timeout = int(spec.config.get("timeout", 60))
         prompt = _rubric_prompt(context, spec)
+        if rep > 0:
+            # Distinguish repeated samples so the response cache returns an
+            # independent draw rather than the first cached verdict.
+            prompt = f"{prompt}\n\n(independent sample {rep + 1})"
         if provider == "anthropic":
             response = anthropic_messages(
                 model,
@@ -89,6 +98,43 @@ class LLMRubricVerifier(BaseVerifier):
             response = openai_response(model, prompt, timeout=timeout)
             return _parse_json_object(response.text)
         raise ValueError(f"unsupported llm_rubric provider: {provider}")
+
+
+def _verdict_from_judgment(judged: dict[str, Any], threshold: float) -> tuple[bool, float]:
+    if "passed" in judged:
+        passed = bool(judged["passed"])
+        score = float(judged.get("score", 1.0 if passed else 0.0))
+    else:
+        score = float(judged.get("score", 0.0))
+        passed = score >= threshold
+    return passed, score
+
+
+def _aggregate_judgments(judgments: list[dict[str, Any]], threshold: float) -> dict[str, Any]:
+    """Majority-vote a set of judge results; break ties on the mean score.
+
+    Repeated judging surfaces variance that a single cached call hides; the
+    aggregate verdict is the majority pass/fail, and the score is the mean.
+    """
+    votes: list[bool] = []
+    scores: list[float] = []
+    reasons: list[str] = []
+    for judged in judgments:
+        passed, score = _verdict_from_judgment(judged, threshold)
+        votes.append(passed)
+        scores.append(score)
+        if judged.get("reason"):
+            reasons.append(str(judged["reason"]))
+    mean_score = sum(scores) / len(scores) if scores else 0.0
+    pass_votes = sum(1 for vote in votes if vote)
+    if pass_votes * 2 == len(votes):
+        passed = mean_score >= threshold
+    else:
+        passed = pass_votes * 2 > len(votes)
+    reason = "; ".join(reasons[:3])
+    if len(votes) > 1:
+        reason = f"majority {pass_votes}/{len(votes)} passed; {reason}".rstrip("; ")
+    return {"passed": passed, "score": round(mean_score, 6), "votes": votes, "reason": reason}
 
 
 def _rubric_prompt(context: VerifierContext, spec: VerifierSpec) -> str:

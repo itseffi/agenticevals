@@ -7,6 +7,7 @@ from agenticevals.trajectory_export import build_typed_trajectory
 from agenticevals.verifiers.base import VerifierContext
 from agenticevals.verifiers.llm_rubric import (
     LLMRubricVerifier,
+    _aggregate_judgments,
     _compact_transcript,
     _parse_json_object,
     _rubric_prompt,
@@ -70,6 +71,40 @@ class RubricFixtureGuardTests(unittest.TestCase):
         # A hardcoded score must be distinguishable from a real LLM judgment so
         # it cannot silently masquerade as one in aggregated metrics.
         self.assertTrue(result.evidence.get("fixture"))
+
+
+class RubricRepetitionTests(unittest.TestCase):
+    def test_majority_vote_passes_when_most_judgments_pass(self):
+        agg = _aggregate_judgments(
+            [{"passed": True, "score": 0.9}, {"passed": True, "score": 0.8}, {"passed": False, "score": 0.2}], 0.5
+        )
+        self.assertTrue(agg["passed"])
+        self.assertEqual(agg["votes"], [True, True, False])
+
+    def test_majority_vote_fails_when_most_fail(self):
+        agg = _aggregate_judgments([{"passed": False}, {"passed": False}, {"passed": True}], 0.5)
+        self.assertFalse(agg["passed"])
+
+    def test_even_split_breaks_tie_on_mean_score(self):
+        agg = _aggregate_judgments([{"passed": True, "score": 0.4}, {"passed": False, "score": 0.4}], 0.5)
+        self.assertFalse(agg["passed"])  # mean 0.4 < threshold 0.5
+
+    def test_verify_runs_the_judge_repeatedly_and_aggregates(self):
+        verifier = LLMRubricVerifier()
+        calls = {"n": 0}
+        seq = [{"passed": True}, {"passed": True}, {"passed": False}]
+
+        def fake(context, spec, rep=0):
+            i = calls["n"]
+            calls["n"] += 1
+            return seq[i]
+
+        verifier._judge = fake  # type: ignore[method-assign]
+        spec = VerifierSpec(type="llm_rubric", config={"repetitions": 3})
+        result = verifier.verify(_context(), spec)[0]
+        self.assertEqual(calls["n"], 3)
+        self.assertTrue(result.passed)
+        self.assertEqual(result.evidence["repetitions"], 3)
 
 
 class RubricParseTests(unittest.TestCase):
