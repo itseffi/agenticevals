@@ -39,9 +39,9 @@ flowchart TB
   Computer --> Dims
   Svc -. audit .-> Dims
   Computer --> CR
-  RJ --> Exports["RL / preference exports · trial summaries"]
+  RJ --> Exports["RL / preference exports"]
   RO --> Exports
-  Dims --> Exports
+  Dims --> DimOut["reward-row exports · trial summaries"]
   RJ --> Gate["Baselines · release gate"]
   RO --> Gate
 ```
