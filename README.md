@@ -32,10 +32,16 @@ flowchart TB
   end
 
   Traj --> Verif
-  Checks["Post-run checks + final state<br/>commands · files · browser · git diff"] --> Verif
+  Computer --> Checks["Post-run checks + final state<br/>commands · files · browser · git diff"]
+  Checks --> Verif
+  Svc -. audit .-> Verif
+  Agent --> Dims
+  Computer --> Dims
+  Svc -. audit .-> Dims
   Computer --> CR
   RJ --> Out["Baselines · RL / preference exports · release gate"]
   RO --> Out
+  Dims --> Out
 ```
 
 </div>
