@@ -12,16 +12,18 @@ The goal is to evaluate whether an agent can move from user intent to valid acti
 
 ```mermaid
 flowchart LR
-  Task["Task or environment item"] --> Agent["Agent adapter"]
-  Agent --> Backend["Computer backend"]
-  Backend --> State["Workspace, services, browser, shell"]
-  State --> Obs["Observations"]
-  Obs --> Agent
-  State --> Verifiers["Verifiers"]
-  Agent --> Trajectory["trajectory.json / trajectory.jsonl"]
-  Verifiers --> Reward["reward.json / reward-details.json"]
-  Trajectory --> Review["Review, baselines, exports"]
-  Reward --> Review
+  Task["Task / environment item"] --> Agent["Agent adapter"]
+  Agent -->|"shell · files · tool calls"| Computer["Computer runtime<br/>local / sandbox / docker<br/>shell · files · browser · tool dispatcher"]
+  Computer -->|"observations (tool results)"| Agent
+  Computer --> Svc["Mock services + workspace state"]
+  Agent -. records .-> Traj[["Trajectory (trace)"]]
+  Computer -. records .-> Traj
+  Svc -. audit .-> Traj
+  Traj --> Verif["Verifiers<br/>programmatic · state_check · tool_calls · trajectory_check · llm_rubric"]
+  Checks["Post-run checks + final state<br/>commands · files · browser · git diff"] --> Verif
+  Verif --> Reward["reward.json + dimensions / task_score"]
+  Reward --> Out["Baselines · RL/preference exports · release gate"]
+  Traj --> Out
 ```
 
 ## Quick Start
