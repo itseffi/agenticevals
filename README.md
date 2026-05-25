@@ -10,21 +10,35 @@ task -> agent turns -> actions -> observations -> final state -> reward
 
 The goal is to evaluate whether an agent can move from user intent to valid actions, observed state changes, recovery when needed, and a useful final artifact.
 
+<div align="center">
+
 ```mermaid
-flowchart LR
-  Task["Task / environment item"] --> Agent["Agent adapter"]
-  Agent -->|"shell · files · tool calls"| Computer["Computer runtime<br/>local / sandbox / docker<br/>shell · files · browser · tool dispatcher"]
-  Computer -->|"observations (tool results)"| Agent
+flowchart TB
+  Task["Task or environment item"] --> Agent["Agent adapter"]
+  Agent -->|"shell · files · tool calls"| Computer["Computer runtime<br/>local / sandbox / docker"]
+  Computer -->|"observations"| Agent
   Computer --> Svc["Mock services + workspace state"]
   Agent -. records .-> Traj[["Trajectory (trace)"]]
   Computer -. records .-> Traj
   Svc -. audit .-> Traj
-  Traj --> Verif["Verifiers<br/>programmatic · state_check · tool_calls · trajectory_check · llm_rubric"]
+
+  subgraph TaskRun["JSON task run — run_task"]
+    Verif["Verifiers<br/>programmatic · state_check · tool_calls · trajectory_check · llm_rubric"] --> RJ["reward.json + reward-details.json"]
+    Dims["dimensions.json / task_score<br/>separate summary, not the reward"]
+  end
+
+  subgraph EnvRun["Environment rollout — evaluate / rollout"]
+    CR["Environment.compute_reward(item, result, ctx)"] --> RO["rollout.json<br/>reward embedded"]
+  end
+
+  Traj --> Verif
   Checks["Post-run checks + final state<br/>commands · files · browser · git diff"] --> Verif
-  Verif --> Reward["reward.json + dimensions / task_score"]
-  Reward --> Out["Baselines · RL/preference exports · release gate"]
-  Traj --> Out
+  Computer --> CR
+  RJ --> Out["Baselines · RL / preference exports · release gate"]
+  RO --> Out
 ```
+
+</div>
 
 ## Quick Start
 
