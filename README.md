@@ -39,9 +39,11 @@ flowchart TB
   Computer --> Dims
   Svc -. audit .-> Dims
   Computer --> CR
-  RJ --> Out["Baselines · RL / preference exports · release gate"]
-  RO --> Out
-  Dims --> Out
+  RJ --> Exports["RL / preference exports · trial summaries"]
+  RO --> Exports
+  Dims --> Exports
+  RJ --> Gate["Baselines · release gate"]
+  RO --> Gate
 ```
 
 </div>
